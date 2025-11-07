@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SafePump Mothership v4</title>
+  <style>
+    body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
+    pre { margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>SAFE PUMP MOTHERSHIP v4</h1>
+  <pre id="log">Initializing Warp Core...</pre>
+
+  <script type="module">
+    import init, { BlsKeypair, bls_sign, bls_verify } from './pkg/warp_core.js';
+    const log = document.getElementById('log');
+    function p(x) { log.textContent += x + '\n'; }
+
+    await init();
+    p("WARP CORE v4: WASM LOADED");
+
+    const kp = BlsKeypair.generate();
+    const msg = new TextEncoder().encode("SafePump owns the chain");
+    const sig = bls_sign(msg, kp.secret);
+
+    p(`PK: ${kp.public.length} bytes`);
+    p(`SIG: ${sig.sig.length} bytes`);
+    p(`VERIFIED: ${bls_verify(msg, kp.public, sig.sig)}`);
+
+    p("\nMOTHERSHIP v4: FULLY ONLINE");
+    p("BLS + WASM = UNSTOPPABLE");
+    p("READY FOR MULTI-CHAIN DOMINATION");
+  </script>
+</body>
+</html>
