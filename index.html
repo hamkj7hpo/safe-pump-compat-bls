@@ -13,23 +13,37 @@
 
   <script type="module">
     import init, { BlsKeypair, bls_sign, bls_verify } from './pkg/warp_core.js';
+
     const log = document.getElementById('log');
-    function p(x) { log.textContent += x + '\n'; }
+    const p = (x) => log.textContent += x + "\n";
 
-    await init();
-    p("WARP CORE v4: WASM LOADED");
+    try {
+      await init();
+      p("WARP CORE v4: WASM LOADED (SES-SAFE)");
 
-    const kp = BlsKeypair.generate();
-    const msg = new TextEncoder().encode("SafePump owns the chain");
-    const sig = bls_sign(msg, kp.secret);
+      const kp = BlsKeypair.generate();
+      const msg = new TextEncoder().encode("SafePump owns the chain");
 
-    p(`PK: ${kp.public.length} bytes`);
-    p(`SIG: ${sig.sig.length} bytes`);
-    p(`VERIFIED: ${bls_verify(msg, kp.public, sig.sig)}`);
+      let sig;
+      try {
+        sig = bls_sign(msg, kp.secret);
+      } catch (e) {
+        p("SIGN ERROR: " + e.message);
+        throw e;
+      }
 
-    p("\nMOTHERSHIP v4: FULLY ONLINE");
-    p("BLS + WASM = UNSTOPPABLE");
-    p("READY FOR MULTI-CHAIN DOMINATION");
+      p(`PK: ${kp.public.length} bytes`);
+      p(`SIG: ${sig.sig.length} bytes`);
+      p(`VERIFIED: ${bls_verify(msg, kp.public, sig.sig)}`);
+
+      p("\nMOTHERSHIP v4: FULLY ONLINE");
+      p("BLS + WASM = UNSTOPPABLE");
+      p("READY FOR MULTI-CHAIN DOMINATION");
+
+    } catch (e) {
+      p("FATAL: " + e);
+      console.error(e);
+    }
   </script>
 </body>
 </html>

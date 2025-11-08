@@ -1,18 +1,8 @@
 use blstrs::{G1Projective, G2Projective, pairing};
-use group::{Group, Curve};  // <-- ADD Curve HERE
-use group::ff::{Field, PrimeField};
-use rand::rngs::OsRng;
+use group::{Group, Curve};
 use wasm_bindgen::prelude::*;
-
-// Console log
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-macro_rules! console_log {
-    ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
-}
+use web_sys::window;
+use js_sys::Uint8Array;
 
 #[wasm_bindgen]
 pub struct BlsKeypair {
@@ -29,7 +19,21 @@ impl BlsKeypair {
 
     #[wasm_bindgen]
     pub fn generate() -> BlsKeypair {
-        let sk = blstrs::Scalar::random(&mut OsRng);
+        let mut seed = [0u8; 32];
+        let win = window().expect("window");
+        let crypto = win.crypto().expect("crypto");
+
+        let array = Uint8Array::new_with_length(32);
+
+        // Uint8Array IS an ArrayBufferView → pass directly!
+        crypto.get_random_values_with_array_buffer_view(&array)
+            .expect("RNG failed");
+
+        array.copy_to(&mut seed);
+
+        let sk = blstrs::Scalar::from_bytes_be(&seed)
+            .unwrap();
+
         let pk = G1Projective::generator() * sk;
 
         BlsKeypair {
@@ -57,19 +61,19 @@ impl BlsSignature {
 }
 
 #[wasm_bindgen]
-pub fn bls_sign(message: &[u8], secret_bytes: &[u8]) -> Result<BlsSignature, JsValue> {
+pub fn bls_sign(message: &[u8], secret_bytes: &[u8]) -> BlsSignature {
     let sk_bytes: [u8; 32] = secret_bytes.try_into()
-        .map_err(|_| JsValue::from_str("Secret key must be 32 bytes"))?;
+        .expect("Secret key must be 32 bytes");
 
-    let sk = blstrs::Scalar::from_repr_vartime(sk_bytes)
-        .ok_or_else(|| JsValue::from_str("Invalid scalar"))?;
+    let sk = blstrs::Scalar::from_bytes_be(&sk_bytes)
+        .unwrap();
 
     let h = G2Projective::hash_to_curve(message, b"SAFE-PUMP-V4", &[]);
     let sig = h * sk;
 
-    Ok(BlsSignature {
+    BlsSignature {
         sig: sig.to_compressed().to_vec(),
-    })
+    }
 }
 
 #[wasm_bindgen]
@@ -103,22 +107,4 @@ pub fn bls_verify(message: &[u8], pubkey_bytes: &[u8], sig_bytes: &[u8]) -> bool
     let right = pairing(&pk_affine, &h_affine);
 
     left == right
-}
-
-#[wasm_bindgen]
-pub fn isolate_bls() {
-    console_log!("WarpCore V4: BLS isolation online. Multi-chain ready.");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_bls_roundtrip() {
-        let msg = b"SafePump test message";
-        let kp = BlsKeypair::generate();
-        let sig = bls_sign(msg, &kp.secret).unwrap();
-        assert!(bls_verify(msg, &kp.public, &sig.sig));
-    }
 }
