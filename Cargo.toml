@@ -17,3 +17,10 @@ wasm-bindgen = "0.2"
 # RNG + JS Interop
 web-sys = { version = "0.3", features = ["Window", "Crypto"] }
 js-sys = "0.3"
+
+# ZK-HACK BLS-PEDERSEN
+bls-pedersen = { path = "./zk-hack-bls-pedersen" }
+
+[dependencies.getrandom]
+version = "0.2"
+features = ["js"]
