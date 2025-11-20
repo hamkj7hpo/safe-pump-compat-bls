@@ -75,3 +75,13 @@ pub fn bls_verify(message: &[u8], pubkey_bytes: &[u8], sig_bytes: &[u8]) -> bool
 
     left == right
 }
+
+
+#[wasm_bindgen]
+pub fn encrypt_wallet_for_airdrop(wallet: &[u8; 32], amount: u64) -> Vec<u8> {
+    let mut data = Vec::with_capacity(48);
+    data.extend_from_slice(wallet);
+    data.extend_from_slice(&amount.to_le_bytes());
+    data.extend_from_slice(b"SAFE-PUMP-VAULT-2025");
+    data
+}
