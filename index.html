@@ -1,49 +1,69 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SafePump Mothership v4</title>
+  <title>Warp Core v5</title>
   <style>
     body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
     pre { margin: 10px 0; }
   </style>
 </head>
 <body>
-  <h1>SAFE PUMP MOTHERSHIP v4</h1>
+  <h1>SAFE PUMP WARP CORE v5</h1>
   <pre id="log">Initializing Warp Core...</pre>
 
   <script type="module">
-    import init, { BlsKeypair, bls_sign, bls_verify } from './pkg/warp_core.js';
+import init, { BlsKeypair, bls_sign, bls_verify } from './pkg/warp_core.js';
 
-    const log = document.getElementById('log');
-    const p = (x) => log.textContent += x + "\n";
+const log = document.getElementById('log');
+const p = (x) => log.textContent += x + "\n";
 
+async function main() {
     try {
-      await init();
-      p("WARP CORE v4: WASM LOADED (SES-SAFE)");
+        await init();
+        p("WASM loaded");
 
-      const kp = BlsKeypair.generate();
-      const msg = new TextEncoder().encode("SafePump owns the chain");
+        const msg = new TextEncoder().encode("SafePump owns the chain");
 
-      let sig;
-      try {
-        sig = bls_sign(msg, kp.secret);
-      } catch (e) {
-        p("SIGN ERROR: " + e.message);
-        throw e;
-      }
+        let kp;
+        try {
+            kp = await BlsKeypair.generate(); // WASM async key generation
+        } catch (e) {
+            p("Keypair generation failed: " + e);
+            throw e;
+        }
 
-      p(`PK: ${kp.public.length} bytes`);
-      p(`SIG: ${sig.sig.length} bytes`);
-      p(`VERIFIED: ${bls_verify(msg, kp.public, sig.sig)}`);
+        p(`PK: ${kp.public.length} bytes`);
+        p(`SK: ${kp.secret.length} bytes`);
 
-      p("\nMOTHERSHIP v4: FULLY ONLINE");
-      p("BLS + WASM = UNSTOPPABLE");
-      p("READY FOR MULTI-CHAIN DOMINATION");
+        let sig;
+        try {
+            sig = bls_sign(msg, kp.secret);
+        } catch (e) {
+            p("SIGN ERROR: " + e);
+            throw e;
+        }
+
+        p(`SIG: ${sig.length} bytes`);
+
+        let verified;
+        try {
+            verified = bls_verify(msg, kp.public, sig);
+        } catch (e) {
+            p("VERIFY ERROR: " + e);
+            verified = false;
+        }
+
+        p(`VERIFIED: ${verified}`);
+        p("\nMOTHERSHIP v6: FULLY ONLINE");
 
     } catch (e) {
-      p("FATAL: " + e);
-      console.error(e);
+        p("FATAL: " + e);
+        console.error(e);
     }
+}
+
+// Start main async function
+main();
   </script>
 </body>
 </html>
