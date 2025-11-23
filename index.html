@@ -1,69 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Warp Core v5</title>
+  <meta charset="utf-8">
+  <title>crabswap.fun</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
-    pre { margin: 10px 0; }
+    body { margin:0; height:100vh; background:#000; color:#0f0; font-family:monospace; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+    .crab { font-size:8rem; margin:0; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity:0.8; } 50% { opacity:1; text-shadow:0 0 40px #0f0; } }
+    h1 { font-size:3rem; margin:10px; text-shadow:0 0 20px #0f0; }
+    .btn { background:#111; color:#0f0; border:2px solid #0f0; padding:1.2rem 2.5rem; font-size:1.6rem; margin:15px; cursor:pointer; border-radius:12px; width:80%; max-width:400px; }
+    .btn:hover { background:#0f0; color:#000; transform:scale(1.05); transition:0.3s; }
+    .status { margin-top:30px; font-size:1.8rem; min-height:50px; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
-  <h1>SAFE PUMP WARP CORE v5</h1>
-  <pre id="log">Initializing Warp Core...</pre>
+  <div class="crab">CRAB</div>
+  <h1>crabswap.fun</h1>
+  <p>Dark. Anonymous. BLS-protected.</p>
+
+  <button id="connect" class="btn">CONNECT PHANTOM</button>
+
+  <div id="main" class="hidden">
+    <p>Connected as <span id="addr"></span></p>
+    <button id="buy"  class="btn">BUY 0.01 SOL → ANON-CRAB</button>
+    <button id="sell" class="btn">SELL 0.01 SOL → ANON-CRAB</button>
+    <div class="status" id="status">Ready to pinch...</div>
+  </div>
 
   <script type="module">
-import init, { BlsKeypair, bls_sign, bls_verify } from './pkg/warp_core.js';
+    import init, { bls_sign } from './pkg/warp_core.js';
+    await init();
 
-const log = document.getElementById('log');
-const p = (x) => log.textContent += x + "\n";
+    const connectBtn = document.getElementById('connect');
+    const main = document.getElementById('main');
+    const addrSpan = document.getElementById('addr');
+    const status = document.getElementById('status');
 
-async function main() {
-    try {
-        await init();
-        p("WASM loaded");
+    let walletPubkey = null;
+    let blsSecret = localStorage.getItem('crab_bls') 
+        ? Uint8Array.from(JSON.parse(localStorage.getItem('crab_bls'))) 
+        : null;
 
-        const msg = new TextEncoder().encode("SafePump owns the chain");
-
-        let kp;
-        try {
-            kp = await BlsKeypair.generate(); // WASM async key generation
-        } catch (e) {
-            p("Keypair generation failed: " + e);
-            throw e;
-        }
-
-        p(`PK: ${kp.public.length} bytes`);
-        p(`SK: ${kp.secret.length} bytes`);
-
-        let sig;
-        try {
-            sig = bls_sign(msg, kp.secret);
-        } catch (e) {
-            p("SIGN ERROR: " + e);
-            throw e;
-        }
-
-        p(`SIG: ${sig.length} bytes`);
-
-        let verified;
-        try {
-            verified = bls_verify(msg, kp.public, sig);
-        } catch (e) {
-            p("VERIFY ERROR: " + e);
-            verified = false;
-        }
-
-        p(`VERIFIED: ${verified}`);
-        p("\nMOTHERSHIP v6: FULLY ONLINE");
-
-    } catch (e) {
-        p("FATAL: " + e);
-        console.error(e);
+    if (!blsSecret) {
+        crypto.getRandomValues(blsSecret = new Uint8Array(32));
+        localStorage.setItem('crab_bls', JSON.stringify(Array.from(blsSecret)));
+        status.textContent = "Your permanent CRAB identity created";
     }
-}
 
-// Start main async function
-main();
+    connectBtn.onclick = async () => {
+        if (!window.solana?.isPhantom) return alert("Install Phantom Wallet!");
+        try {
+            await window.solana.connect();
+            walletPubkey = window.solana.publicKey.toBytes();
+            const short = window.solana.publicKey.toString().slice(0,6) + "…" + window.solana.publicKey.toString().slice(-4);
+            addrSpan.textContent = short;
+            connectBtn.classList.add('hidden');
+            main.classList.remove('hidden');
+            status.textContent = "You are fully anonymous on-chain";
+        } catch(e) {
+            alert("Phantom connection failed");
+        }
+    };
+
+    const submitIntent = async (isBuy) => {
+        if (!walletPubkey) return;
+        status.textContent = "Signing with your CRAB key...";
+
+        const amountLamports = 10_000_000; // 0.01 SOL
+        const nonce = 1;
+        const minOut = 0;
+
+        // Build message: amount(8) + is_buy(1) + min_out(8) + nonce(8) + pubkey(32)
+        const msg = new Uint8Array(57);
+        const view = new DataView(msg.buffer);
+        view.setBigUint64(0, BigInt(amountLamports), true);
+        msg[8] = isBuy ? 1 : 0;
+        view.setBigUint64(9, BigInt(minOut), true);
+        view.setBigUint64(17, BigInt(nonce), true);
+        msg.set(walletPubkey, 25);
+
+        const sig = bls_sign(msg, blsSecret);
+
+        const payload = {
+            amount_in: amountLamports,
+            is_buy: isBuy,
+            min_out: minOut,
+            nonce: nonce,
+            user_pubkey: Array.from(walletPubkey),
+            bls_sig: Array.from(sig)
+        };
+
+        try {
+            await fetch('https://api.crabswap.fun/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            status.textContent = isBuy 
+                ? "BOUGHT — You are now ANON-CRAB" 
+                : "SOLD — You are now ANON-CRAB";
+        } catch(e) {
+            status.textContent = "Failed — try again";
+        }
+    };
+
+    document.getElementById('buy').onclick  = () => submitIntent(true);
+    document.getElementById('sell').onclick = () => submitIntent(false);
   </script>
 </body>
 </html>
